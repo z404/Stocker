@@ -10,14 +10,19 @@ from matplotlib import style
 import datetime,math
 import tkinter as tk
 
+root = tk.Tk()
+
+def clear_window(window):
+    for ele in window.winfo_children():
+        ele.destroy()
+
 def start_menu():
-    print('started')
-
-
+    global root
+    clear_window(root)
 
 def mainmenu():
     #function to start and initialize the program
-    root = tk.Tk()
+    global root
     root.attributes("-fullscreen",True)
     def start_button():
         start_menu()
