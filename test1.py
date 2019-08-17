@@ -9,17 +9,16 @@ import datetime
 
 style.use('ggplot')
 
-df = quandl.get("WIKI/AAPL")
-
+df = pd.read_csv('GOOG.csv')
+print(df)
 last_date = df.iloc[len(df)-1].name
 print(last_date)
 
-df = df[['Adj. Open',  'Adj. High',  'Adj. Low',  'Adj. Close', 'Adj. Volume']]
-df['HL_PCT'] = (df['Adj. High'] - df['Adj. Low']) / df['Adj. Close'] * 100.0
-df['PCT_change'] = (df['Adj. Close'] - df['Adj. Open']) / df['Adj. Open'] * 100.0
-df = df[['Adj. Close', 'HL_PCT', 'PCT_change', 'Adj. Volume']]
-forecast_col = 'Adj. Close'
-df.fillna(value=-99999, inplace=True)
+df = df[['Open',  'High',  'Low',  'Adj Close', 'Volume']]
+df['HL_PCT'] = (df['High'] - df['Low']) / df['Adj Close'] * 100.0
+df['PCT_change'] = (df['Adj Close'] - df['Open']) / df['Open'] * 100.0
+df = df[['Adj Close', 'HL_PCT', 'PCT_change', 'Volume']]
+forecast_col = 'Adj Close'
 
 forecast_out = int(math.ceil(0.01 * len(df)))
 df['label'] = df[forecast_col].shift(-forecast_out)
@@ -42,7 +41,7 @@ forecast_set = clf.predict(X_lately)
 df['Forecast'] = np.nan
 
 print(forecast_set,confidence, forecast_out)
-
+print(last_date)
 last_unix = last_date.timestamp()
 one_day = 86400
 next_unix = last_unix + one_day
@@ -52,7 +51,8 @@ for i in forecast_set:
     next_unix += 86400
     df.loc[next_date] = [np.nan for _ in range(len(df.columns)-1)]+[i]
 
-df['Adj. Close'].plot()
+print(df)
+df['Adj Close'].plot()
 df['Forecast'].plot()
 plt.legend(loc='upper left')
 plt.xlabel('Date')
