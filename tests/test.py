@@ -1,44 +1,61 @@
-import csv
+import quandl, math
 import numpy as np
-from sklearn.svm import SVR
-import matplotlib.pyplot as pl
+import pandas as pd
+from sklearn import preprocessing, model_selection, svm
+from sklearn.linear_model import LinearRegression
+import matplotlib.pyplot as plt
+from matplotlib import style
+import datetime
+import pickle
 
-dates = []
-prices = []
+style.use('ggplot')
+df= pd.read_csv("GOOG.csv", header=0, index_col='Date', parse_dates=True)
+#df = quandl.get("WIKI/GOOGL")
+df = df[['Open',  'High',  'Low',  'Adj Close', 'Volume']]
+df['HL_PCT'] = (df['High'] - df['Low']) / df['Adj Close'] * 100.0
+df['PCT_change'] = (df['Adj Close'] - df['Open']) / df['Open'] * 100.0
 
-def get_data(filename):
-    count = 0
-    with open(filename,'r') as csvfile:
-        csvFileReader = csv.reader(csvfile)
-        next(csvFileReader)
-        for row in csvFileReader:
-            count +=1
-            dates.append(count)
-            prices.append(float(row[1]))
+df = df[['Adj Close', 'HL_PCT', 'PCT_change', 'Volume']]
+forecast_col = 'Adj Close'
+df.fillna(value=-99999, inplace=True)
+#forecast_out = int(math.ceil(0.1 * len(df)))
+forecast_out = int(input("Enter forecast day:"))
+df['label'] = df[forecast_col].shift(-forecast_out)
 
-def  predict_prices(dates,prices,x):
-    dates = np.reshape(dates,(len(dates),1))
-    svr_lin = SVR(kernel='linear', C=1e3)
-    #svr_poly = SVR(kernel='poly',C=1e3, degree = 2)
-    #svr_rbf = SVR(kernel='rbf',C=1e3, gamma=0.1)
-    svr_lin.fit(dates, prices)
-    #svr_poly.fit(dates, prices)
-    #svr_rbf.fit(dates, prices)
-    
-    pl.scatter(dates, prices, color='black', label='Data')
-    #pl.plot(dates, svr_rbf.predict(dates), color='red', label='RBF model')
-    pl.plot(dates, svr_lin.predict(dates), color='green', label='Linear model')
-    #pl.plot(dates, svr_poly.predict(dates), color='blue', label='Polynomial model')
-    pl.xlabel('Date')
-    pl.ylabel('Price')
-    pl.title('Support Vector Regression')
-    pl.legend(loc='upper left')
-    pl.show()
+X = np.array(df.drop(['label'], 1))
+X = preprocessing.scale(X)
+X_lately = X[-forecast_out:]
+X = X[:-forecast_out]
 
-    return svr_lin.predict(x)[0]#, svr_poly.predict(x)[0], svr_rbf.predict(x)[0]
+df.dropna(inplace=True)
 
-get_data('GOOG.csv')
+y = np.array(df['label'])
 
-predicted_price = predict_prices(dates, prices, [[0],[0]])
-print(predicted_price)
+X_train, X_test, y_train, y_test = model_selection.train_test_split(X, y, test_size=0.2)
+#COMMENTED OUT:
+clf = svm.SVR(kernel='linear')
+clf.fit(X_train, y_train)
+confidence = clf.score(X_test, y_test)
+print(confidence)
+##pickle_in = open('linearregression.pickle','rb')
+##clf = pickle.load(pickle_in)
 
+
+forecast_set = clf.predict(X_lately)
+df['Forecast'] = np.nan
+
+last_date = df.iloc[-1].name
+last_unix = last_date.timestamp()
+one_day = 86400
+next_unix = last_unix + one_day
+
+for i in forecast_set:
+    next_date = datetime.datetime.fromtimestamp(next_unix)
+    next_unix += 86400
+    df.loc[next_date] = [np.nan for _ in range(len(df.columns)-1)]+[i]
+df['Adj Close'].plot()
+df['Forecast'].plot()
+plt.legend(loc=4)
+plt.xlabel('Date')
+plt.ylabel('Price')
+plt.show()
