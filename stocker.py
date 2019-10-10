@@ -13,8 +13,15 @@ import tkinter as tk
 from tkinter import messagebox
 # matplotlib pyplot for plotting
 import matplotlib.pyplot as plt
-
 import matplotlib
+import sqlite3
+
+connection=sqlite3.connect("login_master")
+crsr=connection.cursor()
+try:
+    crsr.execute('create table login (user varchar(30) primary key,password varchar(30),money int(30))')
+except:
+    pass
 
 # Class for analyzing and (attempting) to predict future prices
 # Contains a number of visualizations and analysis methods
@@ -702,7 +709,30 @@ class Stocker():
         plt.ylabel('Predicted Stock Price (US $)');
         plt.xlabel('Date'); plt.title('Predictions for %s' % self.symbol);
         plt.show()
+def add_money(user,money):
+    connection.execute("""update login set money=money + ? where user= ?""",(money,user,))
+    connection.commit()
 
+def add_to_database(user,password="",new_old=0,change=0,new_password=""):
+    if (user,) not in connection.execute("select user from login").fetchall() and new_old==0:
+        print("BYEMFS")#if user does not exist
+    else:
+        if change==1:
+            connection.execute("""update login set password= ? where user= ?""",(new_password,user,))
+            connection.commit()
+        else:
+            if new_old==0:#for login
+                a=crsr.execute("select password from login where user=?",(user,)).fetchall()
+                if password==a[0][0]:
+                    add_money(user,100)
+                    #login success
+                else:
+                    pass
+                    #retry
+            elif new_old==1:#for new user
+                connection.execute("insert into login values(?,?,?)",(user,password,20000))
+                connection.commit()
+        
 def clear_window(window):
     for ele in window.winfo_children():
         ele.destroy()
