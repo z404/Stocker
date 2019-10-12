@@ -4,9 +4,6 @@ import quandl
 import pandas as pd
 import numpy as np
 import fbprophet
-import pytrends
-import datetime
-#from pytrends.request import TrendReq
 import datetime
 #tkinter for GUI, messagebox for showing error messages
 import tkinter as tk
@@ -16,11 +13,15 @@ import matplotlib.pyplot as plt
 import matplotlib
 import sqlite3
 
+
+#Connectivity to sql database to save user login data
 connection=sqlite3.connect("login_master")
 crsr=connection.cursor()
 try:
+    #create the table
     crsr.execute('create table login (user varchar(30) primary key,password varchar(30),money int(30))')
 except:
+    #table has already been created, can pass
     pass
 
 # Class for analyzing and (attempting) to predict future prices
@@ -446,6 +447,13 @@ class Stocker():
         return model, future
       
     # Evaluate prediction model for one year
+    def get_cost(self,nshares = 1):
+        #start_date = datetime.datetime.now().date() - pd.DateOffset(years=1)
+        print(self.stock.tail(1)['Close'])
+        for i in self.stock.tail(1)['Close']:
+            cost_1 = int(i)
+        return cost_1*nshares
+        
     def evaluate_prediction(self, start_date=None, end_date=None, nshares = None):
         
         # Default start date is one year before end of data
@@ -637,8 +645,9 @@ class Stocker():
             plt.title('Predicted versus Buy and Hold Profits');
             plt.legend(loc = 2, prop={'size': 10});
             plt.grid(alpha=0.2); 
-            plt.show()
-        
+            plt.show(block=False)
+            #returning profit from Prophet, profit from Buy-n-Hold
+            return(np.sum(prediction_profit),float(test.loc[test.index[-1], 'hold_profit']))
     # Predict the future price for a given range of days
     def predict_future(self, days=30):
         
@@ -709,34 +718,206 @@ class Stocker():
         plt.ylabel('Predicted Stock Price (US $)');
         plt.xlabel('Date'); plt.title('Predictions for %s' % self.symbol);
         plt.show()
+#Function to change the money stored in the database for the user
 def add_money(user,money):
     connection.execute("""update login set money=money + ? where user= ?""",(money,user,))
     connection.commit()
 
-def add_to_database(user,password="",new_old=0,change=0,new_password=""):
-    if (user,) not in connection.execute("select user from login").fetchall() and new_old==0:
-        print("BYEMFS")#if user does not exist
+#Function to get the current amount stored in the database for a perticular user
+def get_user_balance(username):
+    a=crsr.execute("select money from login where user=?",(username,)).fetchall()
+    money = a[0][0]
+    return money
+
+#Function called when a user is created or logged in
+def manage_user(user,password="",login=0,change=0,new_password=""):
+    if (user,) not in connection.execute("select user from login").fetchall() and login==0:
+        #Trying to log in with a username that doesn't exist in the database
+        messagebox.showerror('Error!','This user doesn\'t exist! Please create a user, then try to log in')
+        return False
     else:
         if change==1:
+            #changing password of the user
             connection.execute("""update login set password= ? where user= ?""",(new_password,user,))
             connection.commit()
         else:
-            if new_old==0:#for login
+            #Create a new user, or login
+            if login==0:
+                #Login with username and password
                 a=crsr.execute("select password from login where user=?",(user,)).fetchall()
                 if password==a[0][0]:
-                    add_money(user,100)
-                    #login success
+                    #logged in sucsessfully
+                    return True
                 else:
-                    pass
-                    #retry
-            elif new_old==1:#for new user
-                connection.execute("insert into login values(?,?,?)",(user,password,20000))
-                connection.commit()
-        
+                    #Wrong password entered
+                    messagebox.showerror('Error!','Wrong password was entered!')
+                    return False
+            elif login==1:
+                #Create a new user with a password and $25000
+                try:
+                    #Create user
+                    connection.execute("insert into login values(?,?,?)",(user,password,25000))
+                    connection.commit()
+                except:
+                    #Current username already exists in the user database
+                    messagebox.showerror('Error!','Username is taken, please choose another one')
+
+#Function to clear the screen without creating a new one
 def clear_window(window):
     for ele in window.winfo_children():
         ele.destroy()
 
+#Display Help screen of the "Play the Market" Game
+def help_screen(username):
+    global root
+    clear_window(root)
+    Title_Label = tk.Label(root, text = 'Rules of the Game', font = 'Ariel 40 bold', pady = 20)
+    Title_Label.pack()
+    #Rules of the game
+    rule_str = ''
+    rule_str += 'Thanks for playing this game. The rules for this game is simple.\n To play the game, an account is required to be created.\n'
+    rule_str += 'An amount of money ($25000) is automatically added to your account\n when you create the account. This money is required\n'
+    rule_str += 'to buy stocks of the company. The game "plays" the market for a\n period of one year (ranging from last year to this date). The profit or loss incurred\n'
+    rule_str += 'by these transactions are added to your account. \n\nYou can choose strategies in which the game can play the market for you. Strategy One is called the\n'
+    rule_str += 'Buy and Hold Strategy. In this strategy, you buy n number of shares\n and hold them for a period of one year, then sell them at the end of the year.\n'
+    rule_str += 'The profits from this transaction is added to your account.\n\n'
+    rule_str += 'The second strategy is the Prophet Predictive Strategy.\n In this strategy, a predictive model, at every interval, predicts either a rise in the stock\n'
+    rule_str += 'price, or a drop in the stock price. If a rise is predicted,\n stocks are bought. If the model predicts a decrease, it doesn\'t play the market\n'
+    rule_str += 'If the model predicted an increase and the stock does increase, you \nrecieve the change in price of the stock over that day times the number of shares.\n'
+    rule_str += 'If the model predicted an increase and the stock decreases, you lose the \nchange in price of the stock over that day times the number of shares.\n'
+    rule_str += 'The net profits or losses are added to your account'
+    Text_Label = tk.Label(root, text = rule_str, font = 'Ariel 15 bold')#, pady = 20)
+    Text_Label.pack()
+    #Function for back button
+    def back_button():
+        game(username)
+    Back_Button = tk.Button(root, text = 'Back', font = 'Ariel 25 bold', command = back_button, pady = 15, width = 29)
+    Back_Button.pack()
+
+#Display the game screen, with the appropriate user details
+def game(username):
+    global root
+    clear_window(root)
+    money = get_user_balance(username)
+    #Strategy ONE
+    def play_the_market_buynhold():
+        symbol = Symbol_Entry.get()
+        stock = Stocker(symbol)
+        if stock == None:
+            return
+        try:
+            stocks = int(Stock_Entry.get())
+        except:
+            messagebox.showerror('Error!','Enter number of stocks as an integer')
+            return
+        cost = stock.get_cost(stocks)
+        if money > cost:
+            a,b = stock.evaluate_prediction(nshares=stocks)
+            a,b = int(a),int(b)
+            profit = b
+            add_money(username,profit)
+            game(username)
+            messagebox.showinfo('Done','You played the market with the Buy-n-Hold strategy. You earned a net profit/loss of $'+str(b)+' amount. If you played the Prophet Predictive Strategy, you would have gained $'+str(a))
+        else:
+            messagebox.showerror('Error!','Stocks Cost too much, you cannot afford it.')
+    #Strategy TWO
+    def play_the_market_prophet():
+        symbol = Symbol_Entry.get()
+        stock = Stocker(symbol)
+        if stock == None:
+            return
+        try:
+            stocks = int(Stock_Entry.get())
+        except:
+            messagebox.showerror('Error!','Enter number of stocks as an integer')
+            return
+        cost = stock.get_cost(stocks)
+        if money > cost:
+            a,b = stock.evaluate_prediction(nshares=stocks)
+            a,b = int(a),int(b)
+            profit = a
+            add_money(username,profit)
+            game(username)
+            messagebox.showinfo('Done','You played the market with the Prophet Predictive strategy. You earned a net profit/loss of $'+str(a)+' amount. If you played the Buy-n-Hold Strategy, you would have gained $'+str(b))
+        else:
+            messagebox.showerror('Error!','Stocks Cost too much, you cannot afford it.')
+
+    #Function for back button
+    def back_button():
+        game_login()
+    #Function for the button to call the function that displays help page
+    def help_button():
+        help_screen(username)
+    #GUI definition
+    Title_Label = tk.Label(root, text = 'Play the Market', font = 'Ariel 40 bold', pady = 20)
+    Title_Label.pack()
+    Text_Label = tk.Label(root, text = 'Welcome, '+username, font = 'Ariel 20 bold')#, pady = 20)
+    Text_Label.pack()
+    Money_Label = tk.Label(root, text = 'Balance = $'+str(money), font = 'Ariel 20 bold')#, pady = 20)
+    Money_Label.pack()
+    Frame1 = tk.Frame(root, pady = 20)
+    Frame1.pack()
+    Symbol_label = tk.Label(Frame1, pady = 15, padx = 10, text = 'Enter Company\'s symbol',font='Ariel 25 bold')
+    Symbol_label.grid(row = 0,column = 0)
+    Symbol_Entry = tk.Entry(Frame1, font = 'Ariel 25 bold')
+    Symbol_Entry.grid(row = 0, column = 1)
+    Stock_label = tk.Label(Frame1, text = 'Enter the number of stocks \nyou want to buy',font='Ariel 25 bold')
+    Stock_label.grid(row = 1,column = 0)
+    Stock_Entry = tk.Entry(Frame1, font = 'Ariel 25 bold')
+    Stock_Entry.grid(row = 1, column = 1)
+    Help_Button = tk.Button(root, text = 'Rules of the game', font = 'Ariel 25 bold', command = help_button, pady = 15, width = 29)
+    Help_Button.pack()
+    Play_Button = tk.Button(root, text = 'Play the Buy-n-Hold strategy', font = 'Ariel 25 bold', command = play_the_market_buynhold, pady = 15, width = 29)
+    Play_Button.pack()
+    Play2_Button = tk.Button(root, text = 'Play the Prophet Predictive strategy', font = 'Ariel 25 bold', command = play_the_market_prophet, pady = 15, width = 29)
+    Play2_Button.pack()
+    Logout_Button = tk.Button(root, text = 'Logout', font = 'Ariel 25 bold', command = back_button, pady = 15, width = 29)
+    Logout_Button.pack()
+
+#Display the Game login Screen 
+def game_login():
+    global root
+    clear_window(root)
+    Title_Label = tk.Label(root, text = 'Login', font = 'Ariel 40 bold', pady = 20)
+    Title_Label.pack()
+    Text_Label = tk.Label(root, text = 'Please create an account or login to play the market', font = 'Ariel 20 bold', pady = 20)
+    Text_Label.pack()
+    #function for when the login button was clicked
+    def login_button():
+        if User_Entry.get() == '' or Pass_Entry.get() == '':
+            messagebox.showerror('Error!','Please enter a username and password')
+        else:
+            returned = manage_user(User_Entry.get(),Pass_Entry.get(),login=0)
+            if returned == True:
+                game(User_Entry.get())
+    #function for when the create button was clicked
+    def create_button():
+        if User_Entry.get() == '' or Pass_Entry.get() == '':
+            messagebox.showerror('Error!','Please enter a username and password')
+        else:
+            manage_user(User_Entry.get(),Pass_Entry.get(),login=1)
+    #Back button function
+    def back_button():
+        clear_window(root)
+        mainmenu()
+    #GUI definition
+    Frame1 = tk.Frame(root, pady = 20)
+    Frame1.pack()
+    User_label = tk.Label(Frame1, pady = 15, padx = 10, text = 'Enter Username',font='Ariel 25 bold')
+    User_label.grid(row = 0,column = 0)
+    User_Entry = tk.Entry(Frame1, font = 'Ariel 25 bold')
+    User_Entry.grid(row = 0, column = 1)
+    Pass_label = tk.Label(Frame1, text = 'Enter Password',font='Ariel 25 bold')
+    Pass_label.grid(row = 1,column = 0)
+    Pass_Entry = tk.Entry(Frame1, font = 'Ariel 25 bold')
+    Pass_Entry.grid(row = 1, column = 1)
+    Login_Button = tk.Button(root, text = 'Login', font = 'Ariel 25 bold', command = login_button, pady = 15, width = 20)
+    Login_Button.pack()
+    Create_Button = tk.Button(root, text = 'Create Account', font = 'Ariel 25 bold', command = create_button, pady = 15, width = 20)
+    Create_Button.pack()
+    Back_Button = tk.Button(root, text = 'Back', font = 'Ariel 25 bold', command = back_button, pady = 15, width = 20)
+    Back_Button.pack()
+    
 def functions_menu(stock_object,days_to_predict):
     global root
     clear_window(root)
@@ -750,6 +931,7 @@ def functions_menu(stock_object,days_to_predict):
         stock_object.predict_future(days=days_to_predict)
     def back():
         start_menu()
+    #GUI definition
     Title_Label = tk.Label(root, text = 'Stock Graphs and data', font = 'Ariel 40 bold', pady = 20)
     Title_Label.pack()
     Wait_Label = tk.Label(root, text = 'Please Wait....', font = 'Ariel 40 bold', pady = 20)
@@ -809,7 +991,7 @@ def mainmenu():
     def predict_button():
         start_menu()
     def play_stock_button():
-        print('hi')
+        game_login()
     def exit_button():
         exit(0)
     Title_Label = tk.Label(root, text = 'Stocker', font = 'Ariel 40 bold', pady = 20)
