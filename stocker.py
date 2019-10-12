@@ -24,6 +24,9 @@ except:
     #table has already been created, can pass
     pass
 
+#create tkinter window
+root = tk.Tk()
+
 # Class for analyzing and (attempting) to predict future prices
 # Contains a number of visualizations and analysis methods
 class Stocker():
@@ -37,13 +40,13 @@ class Stocker():
         # Symbol is used for labeling plots
         self.symbol = ticker
         
-        # Use Personal Api Key
+        # Use Api Key for retriving data from quandl
         quandl.ApiConfig.api_key = 'NEykTiDA4K6T1twrP8xA'
 
-        # Retrieval the financial data
+        # Retrieval of the financial data
         try:
             stock = quandl.get('%s/%s' % (exchange, ticker))
-            
+            #Evaluate missing dates
             date_lst = []
             today = datetime.datetime.now()
             for i in range(len(stock)-1,-1,-1):
@@ -53,15 +56,12 @@ class Stocker():
         except Exception as e:
             messagebox.showerror('Error Retrieving Data',"Could not recieve stock data. Please check your internet connection or the symbol entered")
             return None
-##            print('Error Retrieving Data.')
-##            print(e)
-##            return
         
         # Set the index to a column called Date
         stock = stock.reset_index(level=0)
         stock['Date'] = np.array(date_lst)
         
-        # Columns required for prophet
+        # creating and editing Columns required for prophet
         stock['ds'] = stock['Date']
 
         if ('Adj. Close' not in stock.columns):
@@ -71,7 +71,7 @@ class Stocker():
         stock['y'] = stock['Adj. Close']
         stock['Daily Change'] = stock['Adj. Close'] - stock['Adj. Open']
         
-        # Data assigned as class attribute
+        # Creating class attribute to store globally
         self.stock = stock.copy()
         
         # Minimum and maximum date in range
@@ -102,23 +102,17 @@ class Stocker():
         # Prophet parameters
         # Default prior from library
         self.changepoint_prior_scale = 0.05 
-        self.weekly_seasonality = False
-        self.daily_seasonality = False
-        self.monthly_seasonality = True
-        self.yearly_seasonality = True
+        self.weekly_seasonality = False  #Weekly Periodicity
+        self.daily_seasonality = False   #Daily Periodicity
+        self.monthly_seasonality = True  #Monthly Periodicity
+        self.yearly_seasonality = True   #Yearly Periodicity
         self.changepoints = None
         
-        print('{} Stocker Initialized. Data covers {} to {}.'.format(self.symbol,
-                                                                     self.min_date,
-                                                                     self.max_date))
-    
-    """
-    Make sure start and end dates are in the range and can be
-    converted to pandas datetimes. Returns dates in the correct format
-    """
+##        print('{} Stocker Initialized. Data covers {} to {}.'.format(self.symbol,
+##                                                                     self.min_date,
+##                                                                     self.max_date))
+    #Function to Hanlde dates
     def handle_dates(self, start_date, end_date):
-        
-        
         # Default start and end date are the beginning and end of data
         if start_date is None:
             start_date = self.min_date
@@ -129,12 +123,9 @@ class Stocker():
             # Convert to pandas datetime for indexing dataframe
             start_date = pd.to_datetime(start_date)
             end_date = pd.to_datetime(end_date)
-        
-        except Exception as e:
-            print('Enter valid pandas date format.')
-            print(e)
-            return
-        
+        except:
+            messagebox.showerror('Error!','Enter valid pandas date format.')
+
         valid_start = False
         valid_end = False
         
@@ -144,29 +135,26 @@ class Stocker():
             valid_start = True
             
             if end_date < start_date:
-                print('End Date must be later than start date.')
-                start_date = pd.to_datetime(input('Enter a new start date: '))
-                end_date= pd.to_datetime(input('Enter a new end date: '))
+                messagebox.showerror('Error!','End Date must be later than start date.')
+                #start_date = pd.to_datetime(input('Enter a new start date: '))
+                #end_date= pd.to_datetime(input('Enter a new end date: '))
                 valid_end = False
                 valid_start = False
             
             else: 
                 if end_date > self.max_date:
-                    print('End Date exceeds data range')
-                    end_date= pd.to_datetime(input('Enter a new end date: '))
+                    messagebox.showerror('Error!','End Date exceeds data range')
+                    #end_date= pd.to_datetime(input('Enter a new end date: '))
                     valid_end = False
 
                 if start_date < self.min_date:
-                    print('Start Date is before date range')
-                    start_date = pd.to_datetime(input('Enter a new start date: '))
+                    messagebox.showerror('Error!','Start Date is before date range')
+                    #start_date = pd.to_datetime(input('Enter a new start date: '))
                     valid_start = False
                 
         
         return start_date, end_date
         
-    """
-    Return the dataframe trimmed to the specified range.
-    """
     def make_df(self, start_date, end_date, df=None):
         
         # Default is to use the object stock data
@@ -180,7 +168,7 @@ class Stocker():
         start_in = True
         end_in = True
 
-        # If user wants to round dates (default behavior)
+        # If user wants to round dates (default behavior is true)
         if self.round_dates:
             # Record if start and end date are in df
             if (start_date not in list(df['Date'])):
@@ -223,19 +211,17 @@ class Stocker():
                     
                 # Check to make sure dates are in the data
                 if (start_date not in list(df['Date'])):
-                    print('Start Date not in data (either out of range or not a trading day.)')
-                    start_date = pd.to_datetime(input(prompt='Enter a new start date: '))
+                    messagebox.showerror('Error!','Start Date not in data (either out of range or not a trading day.)')
+                    #start_date = pd.to_datetime(input(prompt='Enter a new start date: '))
                     
                 elif (end_date not in list(df['Date'])):
-                    print('End Date not in data (either out of range or not a trading day.)')
-                    end_date = pd.to_datetime(input(prompt='Enter a new end date: ') )
+                    messagebox.showerror('Error!','End Date not in data (either out of range or not a trading day.)')
+                    #end_date = pd.to_datetime(input(prompt='Enter a new end date: ') )
 
             # Dates are not rounded
             trim_df = df[(df['Date'] >= start_date) & 
                          (df['Date'] <= end_date.date)]
 
-        
-            
         return trim_df
 
 
@@ -243,12 +229,13 @@ class Stocker():
     def plot_stock(self, start_date=None, end_date=None, stats=['Adj. Close'], plot_type='basic'):
         
         self.reset_plot()
-        
+        #Check range of dates to be plotted
         if start_date is None:
             start_date = self.min_date
         if end_date is None:
             end_date = self.max_date
-        
+
+        #create the required dataframe
         stock_plot = self.make_df(start_date, end_date)
 
         colors = ['r', 'b', 'g', 'y', 'c', 'm']
@@ -265,9 +252,9 @@ class Stocker():
             date_stat_max = stock_plot[stock_plot[stat] == stat_max]['Date']
             date_stat_max = date_stat_max[date_stat_max.index[0]]
             
-            print('Maximum {} = {:.2f} on {}.'.format(stat, stat_max, date_stat_max))
-            print('Minimum {} = {:.2f} on {}.'.format(stat, stat_min, date_stat_min))
-            print('Current {} = {:.2f} on {}.\n'.format(stat, self.stock.loc[self.stock.index[-1], stat], self.max_date))
+##            print('Maximum {} = {:.2f} on {}.'.format(stat, stat_max, date_stat_max))
+##            print('Minimum {} = {:.2f} on {}.'.format(stat, stat_min, date_stat_min))
+##            print('Current {} = {:.2f} on {}.\n'.format(stat, self.stock.loc[self.stock.index[-1], stat], self.max_date))
             
             # Percentage y-axis
             if plot_type == 'pct':
@@ -282,7 +269,9 @@ class Stocker():
                          color = colors[i], linewidth = 2.4, alpha = 0.9,
                          label = stat)
 
-                plt.xlabel('Date'); plt.ylabel('Change Relative to Average (%)'); plt.title('%s Stock History' % self.symbol); 
+                plt.xlabel('Date')
+                plt.ylabel('Change Relative to Average (%)')
+                plt.title('%s Stock History' % self.symbol); 
                 plt.legend(prop={'size':10})
                 plt.grid(color = 'k', alpha = 0.4); 
 
@@ -310,23 +299,21 @@ class Stocker():
         matplotlib.rcParams['axes.titlesize'] = 14
         matplotlib.rcParams['text.color'] = 'k'
     
-    # Method to linearly interpolate prices on the weekends
+    # Method to linearly push prices on weekends
     def resample(self, dataframe):
-        # Change the index and resample at daily level
+        # Change the index and change at daily level
         dataframe = dataframe.set_index('ds')
         dataframe = dataframe.resample('D')
         
-        # Reset the index and interpolate nan values
+        # Reset the index and push nan values
         dataframe = dataframe.reset_index(level=0)
         dataframe = dataframe.interpolate()
         return dataframe
     
     # Remove weekends from a dataframe
     def remove_weekends(self, dataframe):
-        
         # Reset index to use ix
         dataframe = dataframe.reset_index(drop=True)
-        
         weekends = []
         
         # Find all of the weekends
@@ -804,13 +791,16 @@ def game(username):
         symbol = Symbol_Entry.get()
         stock = Stocker(symbol)
         if stock == None:
+            #Initialization error
             return
+        #validate number of stocks
         try:
             stocks = int(Stock_Entry.get())
         except:
             messagebox.showerror('Error!','Enter number of stocks as an integer')
             return
         cost = stock.get_cost(stocks)
+        #validate if player can afford stocks
         if money > cost:
             a,b = stock.evaluate_prediction(nshares=stocks)
             a,b = int(a),int(b)
@@ -825,13 +815,16 @@ def game(username):
         symbol = Symbol_Entry.get()
         stock = Stocker(symbol)
         if stock == None:
+            #Initialization error
             return
+        #validate number of stocks
         try:
             stocks = int(Stock_Entry.get())
         except:
             messagebox.showerror('Error!','Enter number of stocks as an integer')
             return
         cost = stock.get_cost(stocks)
+        #validate if player can afford stocks
         if money > cost:
             a,b = stock.evaluate_prediction(nshares=stocks)
             a,b = int(a),int(b)
@@ -922,14 +915,19 @@ def functions_menu(stock_object,days_to_predict):
     global root
     clear_window(root)
     def show_stock():
+        #Plot history
         stock_object.plot_stock()
     def show_model_comparison():
+        #show history and orediction
         model, model_data = stock_object.create_prophet_model(days=days_to_predict)
     def evaluate_model_accuracy():
+        #train and test accuracy graph
         stock_object.evaluate_prediction()
     def predict_future():
+        #predicts the future days
         stock_object.predict_future(days=days_to_predict)
     def back():
+        #back button
         start_menu()
     #GUI definition
     Title_Label = tk.Label(root, text = 'Stock Graphs and data', font = 'Ariel 40 bold', pady = 20)
@@ -954,18 +952,22 @@ def start_menu():
         clear_window(root)
         mainmenu()
     def go_button():
+        #shift screens to predictive screen
         name = Company_Entry.get()
+        #Validate number of stocks entry
         try:
             days = int(Days_Entry.get())
         except:
             messagebox.showerror('Error!','Number of days has to be a number')
             return
+        #validate Stock entry
         if name == '':
             messagebox.showerror('Error!','Please enter a company symbol! Example: "AMZN"')
         else:
             obj = Stocker(name)
             if obj != None:
                 functions_menu(obj,days)
+    #GUI definition
     Title_Label = tk.Label(root, text = 'Stock Predictor', font = 'Ariel 40 bold', pady = 20)
     Title_Label.pack()
     Frame = tk.Frame(root, pady=20)
@@ -989,11 +991,15 @@ def mainmenu():
     root.attributes("-fullscreen",True)
     #display the main greeting menu
     def predict_button():
+        #Predict screen
         start_menu()
     def play_stock_button():
+        #Game login screen
         game_login()
     def exit_button():
+        #Exit program with return code 0 (success)
         exit(0)
+    #GUI definition
     Title_Label = tk.Label(root, text = 'Stocker', font = 'Ariel 40 bold', pady = 20)
     Title_Label.pack()
     Catchphrase_Label = tk.Label(root, text = 'Stalking your Stocks!', font='Ariel 15', pady = 20)
@@ -1005,5 +1011,5 @@ def mainmenu():
     Exit_Button = tk.Button(root, text = 'Exit', font = 'Ariel 20 bold', pady = 20, width = 30, background='lightgrey', command = exit_button)
     Exit_Button.pack()
     
-root = tk.Tk()
+#start the program
 mainmenu()
