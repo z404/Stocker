@@ -1,5 +1,5 @@
 # Quandl for financial analysis, pandas and numpy for data manipulation
-# fbprophet for additive models, #pytrends for Google trend data
+# fbprophet for additive models
 import quandl
 import pandas as pd
 import numpy as np
@@ -20,20 +20,20 @@ crsr=connection.cursor()
 try:
     #create the table
     crsr.execute('create table login (user varchar(30) primary key,password varchar(30),money int(30))')
-except:
+except Exception as e:
     #table has already been created, can pass
     pass
 
 #create tkinter window
 root = tk.Tk()
 
-# Class for analyzing and (attempting) to predict future prices
+# Class for analyzing and attempting to predict future prices
 # Contains a number of visualizations and analysis methods
 class Stocker():
     
     # Initialization requires a ticker symbol
     def __init__(self, ticker, exchange='WIKI'):
-        
+        print(self)
         # Enforce capitalization
         ticker = ticker.upper()
         
@@ -102,15 +102,12 @@ class Stocker():
         # Prophet parameters
         # Default prior from library
         self.changepoint_prior_scale = 0.05 
-        self.weekly_seasonality = False  #Weekly Periodicity
+        self.weekly_seasonality = True   #Weekly Periodicity
         self.daily_seasonality = False   #Daily Periodicity
         self.monthly_seasonality = True  #Monthly Periodicity
         self.yearly_seasonality = True   #Yearly Periodicity
         self.changepoints = None
-        
-##        print('{} Stocker Initialized. Data covers {} to {}.'.format(self.symbol,
-##                                                                     self.min_date,
-##                                                                     self.max_date))
+
     #Function to Hanlde dates
     def handle_dates(self, start_date, end_date):
         # Default start and end date are the beginning and end of data
@@ -371,7 +368,7 @@ class Stocker():
     # Create a prophet model without training
     def create_model(self):
 
-        # Make the model
+        # Make the mode
         model = fbprophet.Prophet(daily_seasonality=self.daily_seasonality,  
                                   weekly_seasonality=self.weekly_seasonality, 
                                   yearly_seasonality=self.yearly_seasonality,
@@ -385,7 +382,7 @@ class Stocker():
         return model
    
     # Basic prophet model for specified number of days  
-    def create_prophet_model(self, days=0, resample=False):
+    def create_prophet_model(self, days=0, resample=False): #2nd
         
         self.reset_plot()
         
@@ -441,7 +438,7 @@ class Stocker():
             cost_1 = int(i)
         return cost_1*nshares
         
-    def evaluate_prediction(self, start_date=None, end_date=None, nshares = None):
+    def evaluate_prediction(self, start_date=None, end_date=None, nshares = None): #3rd
         
         # Default start date is one year before end of data
         # Default end date is end date of data
@@ -705,6 +702,7 @@ class Stocker():
         plt.ylabel('Predicted Stock Price (US $)');
         plt.xlabel('Date'); plt.title('Predictions for %s' % self.symbol);
         plt.show()
+        
 #Function to change the money stored in the database for the user
 def add_money(user,money):
     connection.execute("""update login set money=money + ? where user= ?""",(money,user,))
@@ -1013,3 +1011,4 @@ def mainmenu():
     
 #start the program
 mainmenu()
+    
